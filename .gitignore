@@ -1,0 +1,12 @@
+.venv/
+simu5g/
+paper/
+*.vec
+*.vci
+*.sca
+validation/results/logs/
+validation/results/Baseline/
+validation/results/UrbanMacro/
+__pycache__/
+.DS_Store
+results/extracted/*/sinr_samples.csv

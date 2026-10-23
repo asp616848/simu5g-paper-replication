@@ -1,0 +1,207 @@
+diff --git a/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.cc b/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.cc
+index 3a066f2..9554444 100644
+--- a/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.cc
++++ b/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.cc
+@@ -1137,7 +1137,7 @@ const DrbDesc *BearerConfigurator::findBearerDefinition(const FlowId& flow)
+     return nullptr;
+ }
+ 
+-void BearerConfigurator::receiveSignal(cComponent *source, simsignal_t signalID, long nodeId, cObject *details)
++void BearerConfigurator::receiveSignal(cComponent *source, simsignal_t signalID, intval_t nodeId, cObject *details)
+ {
+     ASSERT(signalID == Binder::nodeUnregisteredSignal_);
+     MacNodeId id = MacNodeId(nodeId);
+diff --git a/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.h b/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.h
+index 5788886..4bcde04 100644
+--- a/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.h
++++ b/src/simu5g/corenetwork/bearerConfigurator/BearerConfigurator.h
+@@ -172,7 +172,7 @@ class BearerConfigurator : public cSimpleModule, public cListener
+      * left the simulation. drbIdsInUse_ is keyed by node pair, so a departed id survives
+      * inside every pair it took part in and would keep those identities reserved.
+      */
+-    void receiveSignal(cComponent *source, simsignal_t signalID, long nodeId, cObject *details) override;
++    void receiveSignal(cComponent *source, simsignal_t signalID, intval_t nodeId, cObject *details) override;
+ 
+     virtual bool isDualConnectivityRequired(const FlowId& flow);
+     virtual void createConnection(const FlowId& flow, const BearerRequest& req, bool withPdcp);
+diff --git a/src/simu5g/nodes/ExtCell.cc b/src/simu5g/nodes/ExtCell.cc
+index a8d537e..c973b17 100644
+--- a/src/simu5g/nodes/ExtCell.cc
++++ b/src/simu5g/nodes/ExtCell.cc
+@@ -69,8 +69,8 @@ void ExtCell::initialize(int stage)
+         // get the allocation parameters
+         if (allocationType_ == FULL_ALLOC) {
+             // mark all RBs as occupied
+-            bandStatus_.resize(numBands_, 1);
+-            prevBandStatus_.resize(numBands_, 1);
++            bandStatus_.assign(numBands_, 1);
++            prevBandStatus_.assign(numBands_, 1);
+         }
+         else {
+             // get the band utilization
+diff --git a/src/simu5g/stack/d2d/binder/D2dBinder.cc b/src/simu5g/stack/d2d/binder/D2dBinder.cc
+index 01ba2e7..c83b7cc 100644
+--- a/src/simu5g/stack/d2d/binder/D2dBinder.cc
++++ b/src/simu5g/stack/d2d/binder/D2dBinder.cc
+@@ -46,7 +46,7 @@ void D2dBinder::initialize()
+     WATCH_SET(multicastTransmitterSet_);
+ }
+ 
+-void D2dBinder::receiveSignal(cComponent *source, simsignal_t signalID, long nodeId, cObject *details)
++void D2dBinder::receiveSignal(cComponent *source, simsignal_t signalID, intval_t nodeId, cObject *details)
+ {
+     ASSERT(signalID == Binder::nodeUnregisteredSignal_);
+     MacNodeId id = MacNodeId(nodeId);
+diff --git a/src/simu5g/stack/d2d/binder/D2dBinder.h b/src/simu5g/stack/d2d/binder/D2dBinder.h
+index 00b7641..c25229b 100644
+--- a/src/simu5g/stack/d2d/binder/D2dBinder.h
++++ b/src/simu5g/stack/d2d/binder/D2dBinder.h
+@@ -73,7 +73,7 @@ class D2dBinder : public cSimpleModule, public cListener
+      * UE's map as well; a departed id left behind is later handed to getD2DCapability(),
+      * which asserts that both of its arguments are registered UEs.
+      */
+-    void receiveSignal(cComponent *source, simsignal_t signalID, long nodeId, cObject *details) override;
++    void receiveSignal(cComponent *source, simsignal_t signalID, intval_t nodeId, cObject *details) override;
+ 
+   public:
+     /**
+diff --git a/src/simu5g/stack/d2d/mac/amc/D2dAmc.h b/src/simu5g/stack/d2d/mac/amc/D2dAmc.h
+index 782fdb8..679938d 100644
+--- a/src/simu5g/stack/d2d/mac/amc/D2dAmc.h
++++ b/src/simu5g/stack/d2d/mac/amc/D2dAmc.h
+@@ -56,7 +56,7 @@ class D2dAmc : public Base, public ID2dAmc, public cListener
+         }
+     }
+ 
+-    void receiveSignal(cComponent *source, simsignal_t signalID, long nodeId, cObject *details) override
++    void receiveSignal(cComponent *source, simsignal_t signalID, intval_t nodeId, cObject *details) override
+     {
+         ASSERT(signalID == Binder::nodeUnregisteredSignal_);
+         d2dHelper_.purgeDepartedNode(MacNodeId(nodeId));
+diff --git a/src/simu5g/stack/phy/channelmodel/PathLossModel.h b/src/simu5g/stack/phy/channelmodel/PathLossModel.h
+index b001c46..51a7353 100644
+--- a/src/simu5g/stack/phy/channelmodel/PathLossModel.h
++++ b/src/simu5g/stack/phy/channelmodel/PathLossModel.h
+@@ -67,6 +67,9 @@ class PathLossModel
+      * ownership stays with the owning channel model; this only receives the
+      * values it has already read from its NED parameters.
+      */
++    // overrides the building-penetration state, e.g. per UE (see StochasticChannelModel::indoorFraction)
++    void setInside(bool inside, double insideDistance) { inside_building_ = inside; inside_distance_ = insideDistance; }
++
+     virtual void initialize(cComponent *owner, DeploymentScenario scenario,
+             double hNodeB, double hUe, double hBuilding, double wStreet,
+             bool insideBuilding, double insideDistance,
+diff --git a/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.cc b/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.cc
+index 3fae35b..6118e2c 100644
+--- a/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.cc
++++ b/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.cc
+@@ -71,6 +71,8 @@ void StochasticChannelModel::initialize(int stage)
+         shadowing_ = par("shadowing");
+         hBuilding_ = par("buildingHeight");
+         inside_building_ = par("insideBuilding");
++        indoorFraction_ = par("indoorFraction");
++        deterministicLos_ = par("deterministicLos");
+         if (inside_building_)
+             inside_distance_ = uniform(0.0, 25.0);
+         tolerateMaxDistViolation_ = par("tolerateMaxDistViolation");
+@@ -233,6 +235,27 @@ RadioLink StochasticChannelModel::linkFor(UserControlInfo *lteInfo)
+     return link;
+ }
+ 
++static double frac(double x) { return x - std::floor(x); }
++
++std::pair<bool, double> StochasticChannelModel::indoorState(MacNodeId ueId) const
++{
++    // low-discrepancy sequences, offset per run: the fraction of indoor UEs is (almost) exact
++    // and the indoor distance uniform in [0, 25) m, with no state to keep or synchronize
++    double off = frac(getEnvir()->getConfigEx()->getActiveRunNumber() * 0.3247179572447460);
++    double u1 = frac(num(ueId) * 0.6180339887498949 + off);
++    double u2 = frac(num(ueId) * 0.7548776662466927 + 2.0 * off);
++    return { u1 < indoorFraction_, 25.0 * u2 };
++}
++
++double StochasticChannelModel::penetrationLoss(MacNodeId ueId) const
++{
++    if (indoorFraction_ < 0)
++        return 0.0;
++    auto st = indoorState(ueId);
++    // TR 36.873 clause 7.2.3: 20 dB through the external wall + 0.5 dB/m inside
++    return st.first ? 20.0 + 0.5 * st.second : 0.0;
++}
++
+ double StochasticChannelModel::getAttenuation(const RadioLink& link)
+ {
+     // COMPUTE 3D and 2D DISTANCE between the two endpoints
+@@ -245,7 +268,12 @@ double StochasticChannelModel::getAttenuation(const RadioLink& link)
+     // If Euclidean distance since last LOS probability computation is greater than
+     // correlation distance the UE could have changed its state and
+     // its visibility from eNodeB, hence it is correct to recompute the LOS probability
+-    if (correlationDist > correlationDistance_
++    if (deterministicLos_ && dynamicLos_) {
++        double off = frac(getEnvir()->getConfigEx()->getActiveRunNumber() * 0.3247179572447460);
++        double u = frac(num(link.stateNodeId) * 0.5698402909980532 + num(link.cellId) * 0.4142135623730951 + 3.0 * off);
++        losMap_[link.stateKey] = (u <= pathLoss_->computeLosProbability(threeDimDistance, twoDimDistance));
++    }
++    else if (correlationDist > correlationDistance_
+         || losMap_.find(link.stateKey) == losMap_.end())
+     {
+         computeLosProbability(threeDimDistance, twoDimDistance, link.stateKey);
+@@ -253,6 +281,10 @@ double StochasticChannelModel::getAttenuation(const RadioLink& link)
+ 
+     //compute attenuation based on selected scenario and based on LOS or NLOS
+     bool los = losMap_[link.stateKey];
++    if (indoorFraction_ >= 0) {
++        auto st = indoorState(link.stateNodeId);
++        pathLoss_->setInside(st.first, st.second);
++    }
+     double attenuation = computePathLoss(threeDimDistance, twoDimDistance, los);
+ 
+     //    Applying shadowing only if it is enabled by configuration
+@@ -1310,7 +1342,7 @@ bool StochasticChannelModel::computeExtCellInterference(MacNodeId eNbId, MacNode
+            << dist << "\t";
+ 
+         // compute attenuation according to some path loss model
+-        att = computeExtCellPathLoss(dist, LinkKey(nodeId));
++        att = computeExtCellPathLoss(dist, LinkKey(nodeId)) + penetrationLoss(nodeId);
+ 
+         //=============== ANGULAR ATTENUATION =================
+         if (extCell->getTxDirection() == OMNI) {
+diff --git a/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.h b/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.h
+index 032a5fc..90d7e86 100644
+--- a/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.h
++++ b/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.h
+@@ -88,6 +88,12 @@ class StochasticChannelModel : public ChannelModelBase
+ 
+     // true if the UE is inside a building
+     bool inside_building_;
++    double indoorFraction_ = -1;   // see indoorFraction in the NED file
++    bool deterministicLos_ = false;
++
++    // indoor state / O2I penetration loss of a UE, when indoorFraction_ >= 0
++    std::pair<bool, double> indoorState(MacNodeId ueId) const;
++    double penetrationLoss(MacNodeId ueId) const;
+ 
+     // distance from the building wall
+     double inside_distance_;
+diff --git a/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.ned b/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.ned
+index edee626..cf4538c 100644
+--- a/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.ned
++++ b/src/simu5g/stack/phy/channelmodel/StochasticChannelModel.ned
+@@ -56,6 +56,16 @@ simple StochasticChannelModel extends ChannelModelBase
+         double buildingHeight @unit(m) = default(20m);
+         // determines if the UE is inside a building
+         bool insideBuilding = default(false);
++        // if >= 0, overrides insideBuilding: this fraction of the UEs is deterministically treated as indoor
++        // (O2I penetration + indoor distance), identically on every link of a given UE -- serving link,
++        // CQI feedback link, multi-cell and external-cell interference. Needed when UEs are a mix of
++        // indoor and outdoor, because the CQI of a DL link is evaluated by the gNB-side channel model.
++        double indoorFraction = default(-1);
++        // if true (and dynamicLos is true), the LOS state of a (UE, cell) link is a deterministic function of
++        // the link distance and of fixed per-link random numbers, so that the gNB-side model (CQI feedback)
++        // and the UE-side model (data reception) always agree on it. With independent random draws on the
++        // two sides, CQI and actual reception can disagree by tens of dB.
++        bool deterministicLos = default(false);
+         // enable the high-loss building penetration model (table 7.4.3-2 in TR 38.901); only used with pathLossType="Tr38901"
+         bool useBuildingPenetrationHighLossModel = default(false);
+ 
